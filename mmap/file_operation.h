@@ -9,6 +9,15 @@
 
 #include "common.h"
 
+/*宏定义区域*/
+#define TimeMAX 400
+#define NotExist UINT_MAX
+
+#define Need_Write_to_Disk 1
+#define Not_Write_to_Disk 0
+
+#define File_Exist 1
+#define File_not_Exist 0
 
 class File
 {
@@ -42,6 +51,10 @@ private:
     std::vector<int> stock_num;//股票数目表
     std::vector< std::vector<Kline> > day_block;//数据缓冲区
 
+    /*以上的成员信息会存入文件*/
+
+    int write_sign;//写入磁盘标识
+    int file_exist_sign;//文件是否存在标识
     std::string filename;
 
     std::ifstream open_file;

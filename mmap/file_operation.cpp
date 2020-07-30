@@ -2,9 +2,6 @@
 #include "file_operation.h"
 using namespace std;
 
-/*宏定义区域*/
-#define TimeMAX 400
-#define NotExist UINT_MAX
 
 #if 0
 static int block_seek(vector<Kline> &vec, unsigned int target, bool &sign)
@@ -67,6 +64,7 @@ static int index_seek(vector<unsigned int> &index, unsigned int target, bool &si
 //file_name->文件名
 File::File(std::string file_name)
 {
+    write_sign = Not_Write_to_Disk;
     filename = file_name;
     index = vector<int>(TimeMAX, -1);//初始化索引表index
     stock_num = vector<int>(TimeMAX, 0);//初始化stock数目表
@@ -74,7 +72,8 @@ File::File(std::string file_name)
     open_file.open(file_name, ios::binary|ios::in);//打开文件
     if(open_file.is_open())
     {
-        cout<<"File is exist and open"<<endl;
+        cout<<"文件存在，已经打开"<<endl;
+        file_exist_sign = File_Exist;
         open_file.read( (char *) &block_num, sizeof(block_num));//读取存储的时间块数量
         open_file.read( (char *) &time_max, sizeof(time_max));//读取存储的时间块的最大时间
 
@@ -90,54 +89,71 @@ File::File(std::string file_name)
         vector<Kline> data_block(10000);//初始化数据缓冲区size
         day_block.resize(block_num, data_block);
 
-        for(int i = 0; i < block_num; i++)//读入数据
+        /*读入数据*/
+        for(int i = 0; i < block_num; i++)
         {
             for(int j = 0; j < 10000; j++)
             {
                 open_file.read( (char *) &day_block[i][j], sizeof(Kline));
             }
         }
+
+        cout<<"已读入文件"<<endl;
     }
     else
     {
         block_num = 0;
         time_max = -1;
+        file_exist_sign = File_not_Exist;
+
+        cout<<"文件不存在"<<endl;
     }
     open_file.close();
 
-    cout<<"已读入文件"<<endl;
+    
 }
 
 File::~File()
 {
-    write_file.open(filename, ios::binary|ios::out);//打开文件
-
-    write_file.write( (char *) &block_num, sizeof(block_num));//将block_num存入文件
-    write_file.write( (char *) &time_max, sizeof(time_max));//将block_num存入文件
-
-    for(int i = 0; i < TimeMAX; i++)//索引表存入文件
+    if(write_sign)
     {
-        write_file.write( (char *) &index[i], sizeof(int));
-    }
+        write_file.open(filename, ios::binary|ios::out);//打开文件
 
-    for(int i = 0; i < TimeMAX; i++)//stock数目表存入文件
-    {
-        write_file.write( (char *) &stock_num[i], sizeof(int));
-    }
+        write_file.write( (char *) &block_num, sizeof(block_num));//将block_num存入文件
+        write_file.write( (char *) &time_max, sizeof(time_max));//将time_max存入文件
 
-    for(int i = 0; i < block_num; i++)//数据存入文件
-    {
-        for(int j = 0; j < 10000; j++)
+        for(int i = 0; i < TimeMAX; i++)//索引表存入文件
         {
-            write_file.write( (char *) &day_block[i][j], sizeof(Kline));
+            write_file.write( (char *) &index[i], sizeof(int));
         }
+
+        for(int i = 0; i < TimeMAX; i++)//stock数目表存入文件
+        {
+            write_file.write( (char *) &stock_num[i], sizeof(int));
+        }
+
+        /*数据存入文件*/
+        for(int i = 0; i < block_num; i++)
+        {
+            for(int j = 0; j < 10000; j++)
+            {
+                write_file.write( (char *) &day_block[i][j], sizeof(Kline));
+            }
+        }
+
+        write_file.close();
+        cout<<"已写入文件"<<endl;
+    }
+    else
+    {
+        cout<<"内容未更改，无需写入"<<endl;
     }
 
-    write_file.close();
-
-    day_block.shrink_to_fit();
-
-    cout<<"已写入文件"<<endl;
+    /*释放vector*/
+    vector<vector<Kline>>().swap(day_block);
+    vector<int>().swap(index);
+    vector<int>().swap(stock_num); 
+    
 }
 
 /************查询数据函数，操作位置为内存缓冲区**************/
@@ -147,6 +163,7 @@ File::~File()
 
 int File::file_read_data(Kline &data, const int time, const int stock_id)
 {
+    assert(file_exist_sign);
     assert(time >= 0 && time < 400);
     assert(stock_id >= 0 && stock_id < 10000);
 
@@ -171,6 +188,7 @@ int File::file_read_data(Kline &data, const int time, const int stock_id)
 
 int File::file_read_data(std::vector<Kline> &data, const int time_start, const int time_end, const int stock_id)
 {
+    assert(file_exist_sign);
     assert(time_start < time_end);
     assert(time_start >= 0 && time_start < 400);
     assert(time_end >= 0 && time_end < 400);
@@ -198,6 +216,9 @@ int File::file_insert_data(Kline &data, const int time, const int stock_id)
 {
     assert(time >= 0 && time < 400);
     assert(stock_id >= 0 && stock_id < 10000);
+
+    write_sign = Need_Write_to_Disk;
+    file_exist_sign = File_Exist;
 
     if(time > time_max)/*在尾端插入*/
     {
@@ -263,6 +284,7 @@ int File::file_insert_data(Kline &data, const int time, const int stock_id)
 
 int File::file_delete_data(const int time, const int stock_id)
 {
+    assert(file_exist_sign);
     assert(time >= 0 && time < 400);
     assert(stock_id >= 0 && stock_id < 10000);
 
@@ -274,6 +296,7 @@ int File::file_delete_data(const int time, const int stock_id)
         {
             day_block[index[time]][stock_id].iDate = NotExist;
             stock_num[time]--;
+            write_sign = Need_Write_to_Disk;
             return 1;
         }
         else
@@ -288,6 +311,7 @@ int File::file_delete_data(const int time, const int stock_id)
         {
             day_block.erase(day_block.begin()+index[time]);
             stock_num[time]--;
+            write_sign = Need_Write_to_Disk;
             return 1;
         }
         else
@@ -298,9 +322,7 @@ int File::file_delete_data(const int time, const int stock_id)
     else
     {
         return 0;
-    }
-    
-    
+    }  
 }
 
 int File::get_file_size()
