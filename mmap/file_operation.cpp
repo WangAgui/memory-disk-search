@@ -72,7 +72,7 @@ File::File(std::string file_name)
     open_file.open(file_name, ios::binary|ios::in);//打开文件
     if(open_file.is_open())
     {
-        cout<<"文件存在，已经打开"<<endl;
+        cout<<filename<<"->文件存在，已经打开"<<endl;
         file_exist_sign = File_Exist;
         open_file.read( (char *) &block_num, sizeof(block_num));//读取存储的时间块数量
         open_file.read( (char *) &time_max, sizeof(time_max));//读取存储的时间块的最大时间
@@ -106,7 +106,7 @@ File::File(std::string file_name)
         time_max = -1;
         file_exist_sign = File_not_Exist;
 
-        cout<<"文件不存在"<<endl;
+        cout<<filename<<"->文件不存在"<<endl;
     }
     open_file.close();
 
@@ -142,11 +142,11 @@ File::~File()
         }
 
         write_file.close();
-        cout<<"已写入文件"<<endl;
+        cout<<filename<<"->已写入文件"<<endl;
     }
     else
     {
-        cout<<"内容未更改，无需写入"<<endl;
+        cout<<filename<<"->内容未更改，无需写入"<<endl;
     }
 
     /*释放vector*/
@@ -177,11 +177,13 @@ int File::file_read_data(Kline &data, const int time, const int stock_id)
         }
         else
         {
+            cout<<"目表不存在"<<endl;
             return 0;
         }  
     }
     else
     {
+        cout<<"日期不存在"<<endl;
         return 0;
     } 
 }
@@ -251,7 +253,7 @@ int File::file_insert_data(Kline &data, const int time, const int stock_id)
         }
 
         index[time] = index[cur_time];//更新插入点下标
-        for(int i = cur_time; i < time_max; i++)//更新后面的索引
+        for(int i = cur_time; i <= time_max; i++)//更新后面的索引
         {
             if(index[i] != -1)
             {
@@ -276,6 +278,9 @@ int File::file_insert_data(Kline &data, const int time, const int stock_id)
         {
             ret_sign = 0;
         }
+
+        stock_num[time]++;
+
         day_block[pos][stock_id] = data;
         return ret_sign;
     }
@@ -297,10 +302,12 @@ int File::file_delete_data(const int time, const int stock_id)
             day_block[index[time]][stock_id].iDate = NotExist;
             stock_num[time]--;
             write_sign = Need_Write_to_Disk;
+            cout<<"删除单条数据"<<endl;
             return 1;
         }
         else
         {
+            cout<<"日期存在，目标不存在"<<endl;
             return 0;
         }
         
@@ -310,17 +317,31 @@ int File::file_delete_data(const int time, const int stock_id)
         if(day_block[index[time]][stock_id].iDate != NotExist)
         {
             day_block.erase(day_block.begin()+index[time]);
+
+            index[time] = -1;//更新索引表
+            for(int i = time; i <= time_max; i++)//更新后面的索引
+            {
+                if(index[i] != -1)
+                {
+                    index[i]--;
+                }
+            }
+            
             stock_num[time]--;
+            block_num--;
             write_sign = Need_Write_to_Disk;
+            cout<<"删除整日数据"<<endl;
             return 1;
         }
         else
         {
+            cout<<"日期存在，目标不存在"<<endl;
             return 0;
         } 
     }
     else
     {
+        cout<<"日期不存在"<<endl;
         return 0;
     }  
 }
